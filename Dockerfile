@@ -29,12 +29,9 @@ RUN tar jxf phantomjs-2.1.1-linux-x86_64.tar.bz2 && \
   rm phantomjs-2.1.1-linux-x86_64.tar.bz2 && \
   mv phantomjs-2.1.1-linux-x86_64/bin/phantomjs /usr/local/bin/phantomjs
 
-RUN pip install --upgrade pip
-
-ADD ./requirements.txt /sirius/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
-
-RUN pip install honcho
+RUN pip install --upgrade pip setuptools wheel
+ADD ./pyproject.toml /sirius/pyproject.toml
+RUN pip install --no-cache-dir .
 
 EXPOSE 5000
 
