@@ -1,0 +1,4 @@
+.circleci
+notes
+docker-compose*
+*.md

@@ -1,41 +1,52 @@
 import os
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'this is the lp2 secret'
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "this is the lp2 secret"
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # printer not seen for 60 seconds: Mark offline.
     PRINTER_OFFLINE_CUTOFF_SECONDS = 60
+    TWITTER_OAUTH_CLIENT_KEY = os.getenv("TWITTER_OAUTH_CLIENT_KEY")
+    TWITTER_OAUTH_CLIENT_SECRET = os.getenv("TWITTER_OAUTH_CLIENT_SECRET")
+    OAUTH_REDIRECT_URI = os.getenv("OAUTH_REDIRECT_URI")
 
     @staticmethod
     def init_app(app):
         pass
 
+
 class TestConfig(Config):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'data-dev.sqlite')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL"
+    ) or "sqlite:///" + os.path.join(basedir, "data-dev.sqlite")
     TESTING = True
     WTF_CSRF_ENABLED = False
     LOGIN_DISABLED = False
 
+
 class DevelopmentConfig(Config):
     DEBUG = True
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'data-dev.sqlite')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL"
+    ) or "sqlite:///" + os.path.join(basedir, "data-dev.sqlite")
+
 
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'data.sqlite')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL"
+    ) or "sqlite:///" + os.path.join(basedir, "data.sqlite")
 
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
 
+
 class HerokuConfig(ProductionConfig):
-    SSL_DISABLE = bool(os.environ.get('SSL_DISABLE'))
+    SSL_DISABLE = bool(os.environ.get("SSL_DISABLE"))
     DEBUG = True
 
     @classmethod
@@ -44,21 +55,22 @@ class HerokuConfig(ProductionConfig):
 
         # handle proxy server headers
         from werkzeug.contrib.fixers import ProxyFix
+
         app.wsgi_app = ProxyFix(app.wsgi_app)
 
         # log to stderr
         import logging
         from logging import StreamHandler
+
         file_handler = StreamHandler()
         file_handler.setLevel(logging.WARNING)
         app.logger.addHandler(file_handler)
 
 
 config = {
-    'development': DevelopmentConfig,
-    'production': ProductionConfig,
-    'heroku': HerokuConfig,
-    'test': TestConfig,
-
-    'default': DevelopmentConfig
+    "development": DevelopmentConfig,
+    "production": ProductionConfig,
+    "heroku": HerokuConfig,
+    "test": TestConfig,
+    "default": DevelopmentConfig,
 }

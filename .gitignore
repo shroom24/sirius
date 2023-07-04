@@ -1,6 +1,7 @@
 # Custom
 venv/
-.env
+.env*
+!.env.example
 
 certs/
 

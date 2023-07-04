@@ -1,51 +1,75 @@
-import os
-import datetime
-import flask
 import logging
-from gevent import pool
+
+from requests_oauthlib import OAuth2Session
+import requests
+import flask
 import flask_login as login
-from flask_dance.consumer import oauth_authorized, oauth_error
-from flask_dance.contrib.twitter import make_twitter_blueprint, twitter
-import twitter as twitter_api
 
 from sirius.models import user as user_model
 from sirius.models.db import db
 
 logger = logging.getLogger(__name__)
 
-api_key=os.environ.get('TWITTER_CONSUMER_KEY', 'DdrpQ1uqKuQouwbCsC6OMA4oF')
-api_secret=os.environ.get('TWITTER_CONSUMER_SECRET', 'S8XGuhptJ8QIJVmSuIk7k8wv3ULUfMiCh9x1b19PmKSsBh1VDM')
+blueprint = flask.Blueprint("twitter", __name__)
 
-# TODO move the consumer_key/secret to flask configuration. The
-# current key is a test app that redirects to 127.0.0.1:8000.
-blueprint = make_twitter_blueprint(
-    api_key=api_key,
-    api_secret=api_secret,
-)
+auth_url = "https://twitter.com/i/oauth2/authorize"
+token_url = "https://api.twitter.com/2/oauth2/token"
 
-# @blueprint.route('/twitter/login')
-# def twitter_login():
-#     # Clear token, see https://github.com/mitsuhiko/flask-oauth/issues/48:
-#     flask.session.pop('twitter_token', None)
-#     flask.session.pop('twitter_screen_name', None)
+scopes = ["tweet.read", "users.read", "offline.access"]
 
-#     return twitter.authorize(callback=flask.url_for('twitter_oauth.oauth_authorized',
-#         next=flask.request.args.get('next') or flask.request.referrer or None))
+oauth_session: OAuth2Session
+code_challenge: str
+code_verifier: str
 
-@blueprint.route('/twitter/logout')
+
+def make_token():
+    global oauth_session
+    global code_verifier
+    global code_challenge
+
+    client_id = flask.current_app.config.get("TWITTER_OAUTH_CLIENT_KEY")
+    redirect_uri = flask.current_app.config.get("OAUTH_REDIRECT_URI")
+
+    oauth_session = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scopes)
+    code_verifier = oauth_session._client.create_code_verifier(43)
+    code_challenge = oauth_session._client.create_code_challenge(
+        code_verifier, code_challenge_method="S256"
+    )
+
+
+def get_self():
+    access_token = flask.session.get("twitter_token").get("access_token")
+    resp = requests.get(
+        url="https://api.twitter.com/2/users/me",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+    )
+    if not resp.ok:
+        rule = flask.request.url_rule
+        msg = f"Error from {rule.endpoint}!"
+        logger.debug(msg)
+        flask.flash(msg, category="error")
+        return flask.redirect("/")
+
+    return resp.json().get("data")
+
+
+@blueprint.route("/twitter/logout")
 def twitter_logout():
-    flask.session.pop('user_id', None)
-    flask.flash('You were signed out')
-    return flask.redirect('/')
+    flask.session.pop("user_id", None)
+    flask.flash("You were signed out")
+    return flask.redirect("/")
 
 
-def process_authorization(token, token_secret, screen_name, next_url):
+def process_authorization(token, next_url):
     """Process the incoming twitter oauth data. Validation has already
     succeeded at this point and we're just doing the book-keeping."""
 
-    flask.session['twitter_token'] = (token, token_secret)
-    flask.session['twitter_screen_name'] = screen_name
-
+    flask.session["twitter_token"] = token
+    screen_name = get_self().get("username")
+    flask.session["twitter_screen_name"] = screen_name
     oauth = user_model.TwitterOAuth.query.filter_by(
         screen_name=screen_name,
     ).first()
@@ -60,14 +84,9 @@ def process_authorization(token, token_secret, screen_name, next_url):
         oauth = user_model.TwitterOAuth(
             user=new_user,
             screen_name=screen_name,
-            token=token,
-            token_secret=token_secret,
-            last_friend_refresh=datetime.datetime.utcnow(),
+            token=token.get("access_token"),
+            token_secret=token.get("access_token"),
         )
-
-        # Fetch friends list from twitter. TODO: error handling.
-        friends = get_friends(new_user)
-        oauth.friends = friends
 
         db.session.add(new_user)
         db.session.add(oauth)
@@ -80,68 +99,40 @@ def process_authorization(token, token_secret, screen_name, next_url):
     return flask.redirect(next_url)
 
 
-def get_friends(user):
-    return get_friends_using_tokens(oauth_token=user.twitter_oauth.token, oauth_token_secret=user.twitter_oauth.token_secret)
+@blueprint.route("/twitter")
+def twitter_logged_in():
+    make_token()
 
-def get_friends_using_tokens(oauth_token, oauth_token_secret):
-    api = twitter_api.Twitter(auth=twitter_api.OAuth(
-        oauth_token,
-        oauth_token_secret,
-        api_key,
-        api_secret,
-    ))
-    # Twitter allows lookup of 100 users at a time so we need to
-    # chunk:
-    chunk = lambda l, n: [l[x:x+n] for x in range(0, len(l), n)]
-    friend_ids = list(api.friends.ids()['ids'])
-
-    greenpool = pool.Pool(4)
-
-    # Look up in parallel. Note that twitter has pretty strict 15
-    # requests/second rate limiting.
-    friends = []
-    for result in greenpool.imap(
-            lambda ids: api.users.lookup(user_id=','.join(str(id) for id in ids)),
-            chunk(friend_ids, 100)):
-        for r in result:
-            friends.append(user_model.Friend(
-                screen_name=r['screen_name'],
-                name=r['name'],
-                profile_image_url=r['profile_image_url'],
-            ))
-
-    return sorted(friends)
+    authorization_url, state = oauth_session.authorization_url(
+        auth_url, code_challenge=code_challenge, code_challenge_method="S256"
+    )
+    flask.session["oauth_state"] = state
+    return flask.redirect(authorization_url)
 
 
-@oauth_authorized.connect_via(blueprint)
-def twitter_logged_in(blueprint, token):
-    # TODO: I think this comes via sesstion these days?
-    next_url = flask.request.args.get('next') or '/'
+@blueprint.route("/twitter/authorized", methods=["GET"])
+def twitter_callback():
+    client_secret = flask.current_app.config.get("TWITTER_OAUTH_CLIENT_SECRET")
+    next_url = "/"
+    code = flask.request.args.get("code")
+    error = flask.request.args.get("error")
+    if error is not None:
+        logger.debug("twitter_callback: we got a problem")
+        rule = flask.request.url_rule
+        msg = f"OAuth error from {rule.endpoint}! message={error}"
+        logger.debug(msg)
+        flask.flash(msg, category="error")
+        return flask.redirect(next_url)
+
+    token = oauth_session.fetch_token(
+        token_url=token_url,
+        client_secret=client_secret,
+        code_verifier=code_verifier,
+        code=code,
+    )
 
     if token is None:
         flask.flash("Twitter didn't authorize our sign-in request.", category="error")
         return flask.redirect(next_url)
 
-    process_authorization(
-        token['oauth_token'],
-        token['oauth_token_secret'],
-        token['screen_name'],
-        next_url,
-    )
-
-    return False
-
-# notify on OAuth provider error
-@oauth_error.connect_via(blueprint)
-def twitter_error(blueprint, message, response):
-    logger.debug("we got a problem")
-    msg = (
-        "OAuth error from {name}! "
-        "message={message} response={response}"
-    ).format(
-        name=blueprint.name,
-        message=message,
-        response=response,
-    )
-    logger.debug(msg)
-    flask.flash(msg, category="error")
+    return process_authorization(token, next_url)
