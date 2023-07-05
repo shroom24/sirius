@@ -31,7 +31,7 @@ RUN tar jxf phantomjs-2.1.1-linux-x86_64.tar.bz2 && \
 
 RUN pip install --upgrade pip setuptools wheel
 ADD ./pyproject.toml /sirius/pyproject.toml
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir .[test]
 
 EXPOSE 5000
 
