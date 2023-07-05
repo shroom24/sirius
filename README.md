@@ -67,7 +67,7 @@ DATABASE_URL=...
 
 These can be set in the `.env` file, and an example is available in `.env.sample` in your checkout.
 
-### Creating fake printers and friends
+### Creating fake printers
 
 Resetting the actual hardware all the time gets a bit tiresome so
 there's a fake command that creates unclaimed fake little printers:
@@ -83,18 +83,6 @@ Created printer
 ```
 
 Functionally there is no difference between resetting and creating a new printer so we don't distinguish between the two.
-
-To create a fake friend from twitter who signed up do this:
-
-```console
-$ ./manage.py fake user stephenfry
-```
-
-You can also claim a printer in somebody else's name:
-
-```console
-$ ./manage.py fake claim b7235a2b432585eb quentinsf 342f-eyh0-korc-msej testprinter
-```
 
 ## Sirius Architecture
 
