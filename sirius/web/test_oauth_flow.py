@@ -22,7 +22,7 @@ class TestOAuthFlow(testing.TestCase):
         app = webapp.create_app("test")
         return app
 
-    @mock.patch("twitter.get_self")
+    @mock.patch("sirius.web.twitter.get_self")
     def test_oauth_authorized(self, get_self_mock):
         get_self_mock.return_value = {"username": "test_screen_name"}
         self.assertEqual(login.current_user.is_authenticated, False)
