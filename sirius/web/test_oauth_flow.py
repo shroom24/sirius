@@ -23,7 +23,7 @@ class TestOAuthFlow(testing.TestCase):
     def test_oauth_authorized(self):
         self.assertEqual(login.current_user.is_authenticated, False)
         twitter.process_authorization(
-            "token",
+            {"access_token": "token"},
             "/next_url",
         )
         self.assertEqual(login.current_user.username, "test_screen_name")
