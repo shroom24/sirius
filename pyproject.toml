@@ -49,10 +49,9 @@ dependencies = [
 
 [project.optional-dependencies]
 test = [
-    "snapshottest @ git+git://github.com/syrusakbary/snapshottest.git@4ac2b4fb09e9e7728bebb11967c164a914775d1d#snapshottest",
+    "snapshottest @ git+https://github.com/syrusakbary/snapshottest.git@1.0.0a0",
     "Flask-Testing==0.7.1",
 ]
 
 [tool.setuptools.packages.find]
 include = ["sirius*"]
-
