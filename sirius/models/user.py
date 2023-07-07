@@ -12,8 +12,12 @@ from sirius.models.db import db
 from sirius.models import hardware
 
 
-class CannotChangeOwner(Exception): pass
-class ClaimCodeInUse(Exception): pass
+class CannotChangeOwner(Exception):
+    pass
+
+
+class ClaimCodeInUse(Exception):
+    pass
 
 
 class User(db.Model):
@@ -25,10 +29,11 @@ class User(db.Model):
     # providers. For now we just copy the  twitter handle.
     username = db.Column(db.String)
     twitter_oauth = db.relationship(
-        'TwitterOAuth', uselist=False, backref=db.backref('user'))
+        "TwitterOAuth", uselist=False, backref=db.backref("user")
+    )
 
     def __repr__(self):
-        return 'User {}'.format(self.username)
+        return "User {}".format(self.username)
 
     # Flask-login interface:
     @property
@@ -43,7 +48,9 @@ class User(db.Model):
         return self.id
 
     def generate_api_key(self):
-        self.api_key = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        self.api_key = "".join(
+            random.choice(string.ascii_letters + string.digits) for _ in range(32)
+        )
 
     def claim_printer(self, claim_code, name):
         """Claiming can happen before the printer "calls home" for the first
@@ -59,8 +66,8 @@ class User(db.Model):
 
         if hcc is not None and hcc.by != self:
             raise ClaimCodeInUse(
-                "Claim code {} already claimed by {}".format(
-                    claim_code, hcc.by))
+                "Claim code {} already claimed by {}".format(claim_code, hcc.by)
+            )
 
         if hcc is None:
             hcc = hardware.ClaimCode(
@@ -77,8 +84,7 @@ class User(db.Model):
         # Check whether we've seen this printer and if so: connect it
         # to claim code and make it "owned" but *only* if it does not
         # have an owner yet.
-        printer_query = hardware.Printer.query.filter_by(
-            hardware_xor=hardware_xor)
+        printer_query = hardware.Printer.query.filter_by(hardware_xor=hardware_xor)
         printer = printer_query.first()
         if printer is None:
             return
@@ -86,10 +92,13 @@ class User(db.Model):
         if printer.owner is not None and printer.owner != self:
             raise CannotChangeOwner(
                 "Printer {} already owned by {}. Cannot claim for {}.".format(
-                    printer, printer.owner, self))
+                    printer, printer.owner, self
+                )
+            )
 
-        assert printer_query.count() == 1, \
-            "hardware xor collision: {}".format(hardware_xor)
+        assert printer_query.count() == 1, "hardware xor collision: {}".format(
+            hardware_xor
+        )
 
         printer.used_claim_code = claim_code
         printer.hardware_xor = hardware_xor
@@ -98,40 +107,6 @@ class User(db.Model):
         db.session.add(printer)
         return printer
 
-    def signed_up_friends(self):
-        """
-        A "friend" is someone this user follows on twitter.
-
-        :returns: 2-tuple of (all friends, list of people who can print on
-                  this user's printer)
-        """
-        friends = self.twitter_oauth.friends
-        if not friends:
-            return [], []
-        return friends, User.query.filter(
-            User.username.in_(x.screen_name for x in friends))
-
-    def friends_printers(self):
-        """
-        :returns: List of printers this user can print on.
-        """
-        # TODO(tom): Querying the full database is O(N) and will not
-        # scale. Replace the model with a N:M relationship.
-        sn = self.twitter_oauth.screen_name
-        reverse_friend_ids = [
-            x.user_id for x in TwitterOAuth.query.all()
-            for y in (x.friends or [])
-            if sn == y.screen_name]
-
-        # Avoid expensive sql by checking for list.
-        if not reverse_friend_ids:
-            return []
-
-        return hardware.Printer.query.filter(
-            hardware.Printer.owner_id.in_(reverse_friend_ids))
-
-
-Friend = collections.namedtuple('Friend', 'screen_name name profile_image_url')
 
 class TwitterOAuth(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -141,23 +116,3 @@ class TwitterOAuth(db.Model):
 
     token = db.Column(db.String)
     token_secret = db.Column(db.String)
-
-    # Twitter comes with a 15 requests / 15 minutes rate. To avoid
-    # people DOS'ing our service we allow only one refresh per hour.
-    last_friend_refresh = db.Column(db.DateTime)
-
-    # List of Friend objects (see named tuple above this class)
-    friends = db.Column(db.PickleType())
-
-    def seconds_to_next_refresh(self, utcnow=None):
-        if utcnow is None:
-            utcnow = datetime.datetime.utcnow()
-
-        if self.last_friend_refresh is None:
-            return 0
-
-        seconds_since_refresh = (
-            utcnow - self.last_friend_refresh
-        ).total_seconds() - 3600
-
-        return abs(min(seconds_since_refresh, 0))

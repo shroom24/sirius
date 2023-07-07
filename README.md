@@ -49,7 +49,7 @@ docker-compose -f docker-compose.yml -f docker-compose.development.yml up
 
 Or if you have your own database, you can configure the `DEV_DATABASE_URL` environment variable in `.env`, and then simply run:
 
-```
+```sh
 docker-compose up
 ```
 
@@ -57,16 +57,17 @@ docker-compose up
 
 The server can be configured with the following variables:
 
-```
-TWITTER_CONSUMER_KEY=...
-TWITTER_CONSUMER_SECRET=...
+```properties
+TWITTER_OAUTH_CLIENT_KEY=...
+TWITTER_OAUTH_CLIENT_SECRET=...
+OAUTH_REDIRECT_URI=...
 FLASK_CONFIG=...
 DATABASE_URL=...
 ```
 
 These can be set in the `.env` file, and an example is available in `.env.sample` in your checkout.
 
-### Creating fake printers and friends
+### Creating fake printers
 
 Resetting the actual hardware all the time gets a bit tiresome so
 there's a fake command that creates unclaimed fake little printers:
@@ -82,18 +83,6 @@ Created printer
 ```
 
 Functionally there is no difference between resetting and creating a new printer so we don't distinguish between the two.
-
-To create a fake friend from twitter who signed up do this:
-
-```console
-$ ./manage.py fake user stephenfry
-```
-
-You can also claim a printer in somebody else's name:
-
-```console
-$ ./manage.py fake claim b7235a2b432585eb quentinsf 342f-eyh0-korc-msej testprinter
-```
 
 ## Sirius Architecture
 
