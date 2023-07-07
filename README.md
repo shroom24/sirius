@@ -44,7 +44,7 @@ but we don't use it that way :).
 There's a development Docker setup that adds Postgres for you, by running:
 
 ```sh
-docker-compose -f docker-compose.yml -f docker-compose.development.yml up
+docker-compose -f docker-compose.yml -f docker-compose.db.yml -f docker-compose.development.yml up
 ```
 
 Or if you have your own database, you can configure the `DEV_DATABASE_URL` environment variable in `.env`, and then simply run:
