@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/nordprojects/sirius.svg?style=svg)](https://circleci.com/gh/nordprojects/sirius)
 
-![CloudBerg Little Printer](https://i.vimeocdn.com/video/222115839_1280x720.jpg)
+![Little Printer](https://github.com/nordprojects/sirius/assets/1244307/b4456b39-becd-4bfe-bc46-ddb14dde86b8)
 
 This repository is a fork of [genmon/sirius](https://github.com/genmon/sirius), developed and maintained by [Nord Projects](https://nordprojects.co).
 
